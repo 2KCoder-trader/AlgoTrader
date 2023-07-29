@@ -28,9 +28,9 @@ def ordering():
 
 def get_access_token():
     secrets = pd.read_csv("secrets.csv")
-    CLIENT_ID = secrets["Client ID"]
-    CLIENT_SECRET = secrets["Client Secret"]
-    REFRESH_TOKEN = secrets["Refresh Token"]
+    CLIENT_ID = secrets["Client ID"][0]
+    CLIENT_SECRET = secrets["Client Secret"][0]
+    REFRESH_TOKEN = secrets["Refresh Token"][0]
     url = "https://signin.tradestation.com/oauth/token"
     payload = f'grant_type=refresh_token&client_id={CLIENT_ID}&client_secret={CLIENT_SECRET}&refresh_token={REFRESH_TOKEN}'
     headers = {
