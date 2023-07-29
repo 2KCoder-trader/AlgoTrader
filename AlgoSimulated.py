@@ -27,9 +27,7 @@ def ordering():
 
 
 def get_access_token():
-    CLIENT_ID = 'IEtYk719UQUUDtF8BKZf64ilgOC7RInx'
-    CLIENT_SECRET = 'DCXYcubCpZichUrLAas-fm-lDli9qbaonsBqCaXyjhomXYeqICXwv3zxT5WI9obu'
-    REFRESH_TOKEN = 'Q98GCTmSpydtZPAEumcWZcgthV8FKus7TPqE9VrzyB884'
+
     url = "https://signin.tradestation.com/oauth/token"
     payload = f'grant_type=refresh_token&client_id={CLIENT_ID}&client_secret={CLIENT_SECRET}&refresh_token={REFRESH_TOKEN}'
     headers = {
