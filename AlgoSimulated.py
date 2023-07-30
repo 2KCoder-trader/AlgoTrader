@@ -12,6 +12,7 @@ import pandas_market_calendars as mcal
 import datetime as dt
 import math
 from KeyUpdater import headers
+from AccountsSim import get_balance
 
 
 def ordering():
@@ -143,7 +144,10 @@ def share_amount(balance,prev_close):
     next_trade_cost = ((balance) * day_percentage) - ((balance) - trade_bal)
     print("next_trade_cost: ", next_trade_cost)
     if next_trade_cost > prev_close:
-        return math.floor(next_trade_cost / prev_close)
+        if math.floor(next_trade_cost / prev_close) > 10:
+            return 10
+        else:
+            return math.floor(next_trade_cost / prev_close) > 10
     else:
         return 0
 
@@ -168,11 +172,10 @@ def algoTrader(tick):
     difference = 0
     deleted = False
     next_share_amount = 0
-    multiplier = 1
-    balance = pd.read_csv("trade_balance.csv")[0][0]
+    balance = get_balance()
     print("Algorithm Starting")
     while True:
-        multiplier = 0
+        multiplier = 1
         try:
             print("Checking Market Status")
             if market_status()[0] == False:
@@ -198,6 +201,7 @@ def algoTrader(tick):
             print("Getting level: ", level)
             print(f"Watching {tick} Market . . .")
             response = requests.request("GET", stream_url, headers=headers(), stream=True)
+            wait_time = datetime.now()+timedelta(hours = 1)
             for line in response.iter_lines():
                 if line:
                     if skip_line == 0:
@@ -232,6 +236,8 @@ def algoTrader(tick):
                         break
                     print('prev_close: ', prev_close, '\n', 'cur_close: ', cur_close)
                     prev_close = cur_close
+                    if datetime.now()> wait_time:
+                        return
             skip_line = 0
             difference = cur_close - prev_close
             difference /= multiplier

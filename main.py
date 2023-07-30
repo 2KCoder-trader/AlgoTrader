@@ -3,9 +3,10 @@ import json
 import AccountsSim
 import multiprocessing
 import AlgoSimulated
-import subprocess
 import pandas as pd
 from Idle import Idle
+from KeyUpdater import get_access_token
+import requests
 def print_hi(name):
     # Use a breakpoint in the code line below to debug your script.
     print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
@@ -22,7 +23,8 @@ def stock_picker(ticks):
                 continue
             if ('hold' == stock_info['recommendationKey']) or ('none' == stock_info['recommendationKey']) or (
                     'underperform' == stock_info['recommendationKey']) or (
-                    'sell' == stock_info['recommendationKey']):
+                    'sell' == stock_info['recommendationKey'])or (
+                    'buy' == stock_info['recommendationKey']):
                 continue
             if stock_info['volume'] < 10000000:
                 continue
@@ -34,18 +36,16 @@ def stock_picker(ticks):
             print("Error occured: ",e)
 
 
-
-
-
 if __name__ == '__main__':
     multiprocessing.Process(target=AccountsSim.AccountsSim).start()
     multiprocessing.Process(target=Idle).start()
-    multiprocessing.Process(target=AccountsSim.AccountsSim).start()
-    command = "pip install yfinance --upgrade"
-    try:
-        result = subprocess.check_output(command, shell=True, text=True)
-    except subprocess.CalledProcessError as e:
-        print(f"Error executing command: {e}")
-    nasdaq = pd.read_csv("nasdaqtrader.com_dynamic_SymDir_nasdaqlisted.txt", sep="|")
+    multiprocessing.Process(target=get_access_token).start()
+    # Put the function below in accountsim
     while True:
+        page_to_scrape = requests.get("http://ftp.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt")
+        file = open("nasdaqtrader.com_dynamic_SymDir_nasdaqlisted.txt", "w")
+        file.write(str(page_to_scrape.text))
+        file.close()
+        nasdaq = pd.read_csv("nasdaqtrader.com_dynamic_SymDir_nasdaqlisted.txt", sep="|")
+        nasdaq.drop(len(nasdaq) - 1, axis=0, inplace=True)
         stock_picker(nasdaq['Symbol'])

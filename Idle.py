@@ -22,7 +22,7 @@ def Idle():
                 response = requests.request("GET", order_view_url + order, headers=headers)
                 if (response.json()["Status"] != "ACK") | (response.json()["Status"] != "FPL") | (response.json()["Status"] != "OPN"):
                     i = orders[orders["Sell Order"] == order].index
-                    orders.drop(i,axis=0)
+                    orders.drop(i,axis=0,inplace= True)
                     continue
                 time_str = response.json()["OpenedDateTime"]
                 open_date = datetime.strptime(time_str[:time_str.indexAt("T")], '%m-%d-%Y').date()

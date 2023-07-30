@@ -3,11 +3,11 @@
 def AccountsSim():
     import smtplib
     from email.message import EmailMessage
-    from datetime import datetime
     import pandas as pd
     import pytz
     import AlgoSimulated
     import requests
+    import subprocess
     def email_alert(subject, body, to):
         msg = EmailMessage()
         msg.set_content(body)
@@ -33,6 +33,11 @@ def AccountsSim():
     while True:
         if status != AlgoSimulated.market_status()[0]:
             status = AlgoSimulated.market_status()[0]
+            command = "pip install yfinance --upgrade"
+            try:
+                result = subprocess.check_output(command, shell=True, text=True)
+            except subprocess.CalledProcessError as e:
+                print(f"Error executing command: {e}")
             if AlgoSimulated.market_status()[0] == False:
                 unsettled_dur += 1
                 accounts = pd.read_csv("accounts.csv")
@@ -50,4 +55,9 @@ def AccountsSim():
                         accounts.loc[i,'balance'] = accounts['balance'][i]+(perc * day_profit)
                     unsettled_dur = 0
                     day_profit = 0
+def get_balance():
+    import pandas as pd
+    accounts = pd.read_csv("accounts.csv")
+    return accounts['balance'].sum() / 3
+
 
