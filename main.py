@@ -5,6 +5,7 @@ import multiprocessing
 import AlgoSimulated
 import subprocess
 import pandas as pd
+from Idle import Idle
 def print_hi(name):
     # Use a breakpoint in the code line below to debug your script.
     print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
@@ -27,7 +28,7 @@ def stock_picker(ticks):
                 continue
             multiprocessing.Process(target=AlgoSimulated.algoTrader, args=[tick]).start()
             print("Processors: ",multiprocessing.active_children())
-            while len(multiprocessing.active_children()) >= 7:
+            while len(multiprocessing.active_children()) >= 9:
                 print("Processors at capacity",end = "\r")
         except Exception as e:
             print("Error occured: ",e)
@@ -37,7 +38,9 @@ def stock_picker(ticks):
 
 
 if __name__ == '__main__':
-    multiprocessing.Process(target=AccountsSim.AccountsSim)
+    multiprocessing.Process(target=AccountsSim.AccountsSim).start()
+    multiprocessing.Process(target=Idle).start()
+    multiprocessing.Process(target=AccountsSim.AccountsSim).start()
     command = "pip install yfinance --upgrade"
     try:
         result = subprocess.check_output(command, shell=True, text=True)

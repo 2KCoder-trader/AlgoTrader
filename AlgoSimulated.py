@@ -11,6 +11,7 @@ import pytz
 import pandas_market_calendars as mcal
 import datetime as dt
 import math
+from KeyUpdater import headers
 
 
 def ordering():
@@ -26,27 +27,20 @@ def ordering():
     trade_balance.to_csv("trade_balance.csv")
 
 
-def get_access_token():
-    secrets = pd.read_csv("secrets.csv")
-    CLIENT_ID = secrets["Client ID"][0]
-    CLIENT_SECRET = secrets["Client Secret"][0]
-    REFRESH_TOKEN = secrets["Refresh Token"][0]
-    url = "https://signin.tradestation.com/oauth/token"
-    payload = f'grant_type=refresh_token&client_id={CLIENT_ID}&client_secret={CLIENT_SECRET}&refresh_token={REFRESH_TOKEN}'
-    headers = {
-        'Content-Type': 'application/x-www-form-urlencoded'
-    }
-    response = requests.request("POST", url, headers=headers, data=payload)
-    response_data = response.json()
-    return response_data['access_token']
 
 
 def stock_check(tick):
     stock_info = yf.Ticker(tick).info
     if stock_info['previousClose'] > 5:
         return " "
-    if stock_info['previousClose'] < 1:
-        return " "
+    while True:
+        if stock_info['previousClose'] < 1:
+            stock_info['previousClose'] = stock_info['previousClose']*10
+            continue
+        if stock_info['previousClose'] > 5:
+            return " "
+        else:
+            break
     print('recommendationKey: ', stock_info['recommendationKey'])
     if ('hold' == stock_info['recommendationKey']) or ('none' == stock_info['recommendationKey']) or (
             'underperform' == stock_info['recommendationKey']) or (
@@ -56,42 +50,34 @@ def stock_check(tick):
 
 def close_positions(tick):
     print('Clossing Positions ...')
-    order_count = pd.read_csv("order_count.csv")[0][0]
-    params = {
-        'pageSize': order_count
-    }
-    if order_count > 0:
-        response = requests.request("GET", all_order_view_url, params=params, headers=headers)
-        print(json.dumps(response.json(), indent=4))
-        orders = response.json()['Orders']
-        print("Tick: ", tick)
-        for order in orders:
-            if (order['Legs'][0]['BuyOrSell'] == 'Sell') and (order['Legs'][0]['Symbol'] == tick):
-                if order['Status'] == 'ACK':
-                    order_id = order['OrderID']
-                    response = requests.request("DELETE", cancel_order_url + order_id, headers=headers)
-                    print('Delete Order Sent Response: ', response.json())
-        time.sleep(3)
-        response = requests.request("GET", position_url, headers=headers)
-        quan = 0
-        for position in response.json()['Positions']:
-            if position['Symbol'] == tick:
-                quan = position['Quantity']
-            if quan != 0:
-                print("quan, ", quan)
-                payload = {
-                    "AccountID": "SIM1145924M",
-                    "Symbol": f"{tick}",
-                    "Quantity": str(quan),
-                    "OrderType": "Market",
-                    "TradeAction": "SELL",
-                    "Route": "Intelligent",
-                    "TimeInForce": {
-                        "Duration": "GTC"
-                    }
+    orders = pd.read_csv("orders.csv")
+    orders = orders[orders["Symbol"]==tick]
+    if len(orders) == 0:
+        return
+    for order in orders["Sell Order"]:
+        response = requests.request("DELETE", cancel_order_url + order, headers=headers())
+        print('Delete Order Sent Response: ', response.json())
+    time.sleep(3)
+    response = requests.request("GET", position_url, headers=headers())
+    quan = 0
+    for position in response.json()['Positions']:
+        if position['Symbol'] == tick:
+            quan = position['Quantity']
+        if quan != 0:
+            print("quan, ", quan)
+            payload = {
+                "AccountID": "SIM1145924M",
+                "Symbol": f"{tick}",
+                "Quantity": str(quan),
+                "OrderType": "Market",
+                "TradeAction": "SELL",
+                "Route": "Intelligent",
+                "TimeInForce": {
+                    "Duration": "GTC"
                 }
-                response = requests.request("POST", order_url, json=payload, headers=headers)
-                print('Close Order Sent Response: ', response.json()['Orders'][0]['Message'])
+            }
+            response = requests.request("POST", order_url, json=payload, headers=headers())
+            print('Close Order Sent Response: ', response.json()['Orders'][0]['Message'])
 
 
 # def annual_rate_of_return(trade_count, buy_price):
@@ -116,7 +102,7 @@ def volume(tick):
         "barsback": "3"
     }
     response = requests.request("GET", f"https://api.tradestation.com/v3/marketdata/barcharts/{tick}",
-                                params=params, headers=headers)
+                                params=params, headers=headers())
     print(response)
     print(json.dumps(response.json(), indent=4))
     volume0 = float(response.json()['Bars'][0]['TotalVolume'])
@@ -169,14 +155,10 @@ order_url = "https://sim-api.tradestation.com/v3/orderexecution/orders"
 cancel_order_url = "https://sim-api.tradestation.com/v3/orderexecution/orders/"
 position_url = "https://sim-api.tradestation.com/v3/brokerage/accounts/SIM1145924M/positions"
 balances = "https://sim-api.tradestation.com/v3/brokerage/accounts/SIM1145924M/balances"
-token = get_access_token()
-headers = {
-    "Authorization": f'Bearer {token}'
-}
+
 def algoTrader(tick):
+    global buy_order_id, line
     stream_url = f"https://api.tradestation.com/v3/marketdata/stream/barcharts/{tick}"
-    bar_url = f"https://api.tradestation.com/v3/marketdata/barcharts/{tick}"
-    response = ""
     trade_count = 0
     order_count = 0
     skip_line = 0
@@ -184,24 +166,13 @@ def algoTrader(tick):
     cur_close = 0
     prev_close = 0
     difference = 0
-    buy_price = 0
-    sell_price = 0
-    score = 0
     deleted = False
-    once = True
-    start_time = datetime.now()
-    isMarketOpen = False
-    trade_amount = 0
-    market_range = 0
-    total_bal = 0
     next_share_amount = 0
-    divider = 0
-    level = 0
-    balance = 0
-    closePositions = False
-    balance = pd.read_csv("trade_balance.csv")
+    multiplier = 1
+    balance = pd.read_csv("trade_balance.csv")[0][0]
     print("Algorithm Starting")
     while True:
+        multiplier = 0
         try:
             print("Checking Market Status")
             if market_status()[0] == False:
@@ -209,10 +180,6 @@ def algoTrader(tick):
                 time.sleep(300)
                 continue
             print("Market Open")
-            token = get_access_token()
-            headers = {
-                "Authorization": f'Bearer {token}'
-            }
             if stock_check(tick) == " ":
                 close_positions(tick)
                 return " "
@@ -230,23 +197,26 @@ def algoTrader(tick):
                 continue
             print("Getting level: ", level)
             print(f"Watching {tick} Market . . .")
-            response = requests.request("GET", stream_url, headers=headers, stream=True)
+            response = requests.request("GET", stream_url, headers=headers(), stream=True)
             for line in response.iter_lines():
                 if line:
-                    print("loop")
-                    token = get_access_token()
                     if skip_line == 0:
                         skip_line = 1
                         continue
                     line = json.loads(line)
                     try:
+                        line['Close'] = float(line['Close'])
+                        while True:
+                            if line['Close']<1:
+                                multiplier *= 10
+                                line['Close'] = line['Close']*10
+                                continue
+                            else:
+                                break
                         if skip_line == 1:
                             prev_close = cur_close = round(float(line['Close']), 2)
                             skip_line = 2
-                    except Exception as e:
-                        print(e)
-                        continue
-                    try:
+                            continue
                         print("Actual Price: ", float(line['Close']))
                         price_shape = float(line['Close'])
                         if level == 3:
@@ -256,7 +226,7 @@ def algoTrader(tick):
                     except Exception as e:
                         print(e)
                         continue
-                    if (prev_close < cur_close) and (cur_close <= float(line['High']) - .01):
+                    if (prev_close < cur_close) and (cur_close <= (float(line['High'])*multiplier) - .01):
                         print('prev_close: ', prev_close, '\n', 'cur_close: ', cur_close)
                         print('Buying Condition Triggered')
                         break
@@ -264,7 +234,7 @@ def algoTrader(tick):
                     prev_close = cur_close
             skip_line = 0
             difference = cur_close - prev_close
-            token = get_access_token()
+            difference /= multiplier
             next_share_amount = share_amount(balance, prev_close)
             temp_trade_bal = pd.read_csv("trade_balance.csv")[0][0]
             pd.DataFrame([0]).to_csv("trade_balance.csv")
@@ -276,7 +246,7 @@ def algoTrader(tick):
                 payload = {
                     "AccountID": "SIM1145924M",
                     "Symbol": tick,
-                    "Quantity": str(next_share_amount),
+                    "Quantity": str(next_share_amount*multiplier),
                     "OrderType": "StopMarket",
                     "TradeAction": "BUY",
                     "AdvancedOptions": {
@@ -289,10 +259,7 @@ def algoTrader(tick):
                         "Duration": "GTC"
                     }
                 }
-                headers = {
-                    "Authorization": f'Bearer {token}'
-                }
-                response = requests.request("POST", order_url, json=payload, headers=headers)
+                response = requests.request("POST", order_url, json=payload, headers=headers())
                 try:
                     prev_close = 0
                     cur_close = 0
@@ -314,15 +281,12 @@ def algoTrader(tick):
                 }
             }
             print("Initiating Level 3 Order")
-            response = requests.request("POST", order_url, json=payload, headers=headers)
+            response = requests.request("POST", order_url, json=payload, headers=headers())
             prev_close = 0
             cur_close = 0
-            order_count = pd.read_csv("order_count.csv")[0][0]
-            order_count += 1
-            order_count.to_csv("order_count.csv")
             print("Buy Order Sent Response: ", response.json()['Orders'][0]['Message'])
             buy_order_id = response.json()['Orders'][0]['OrderID']
-            response = requests.request("GET", order_view_url + buy_order_id, headers=headers,
+            response = requests.request("GET", order_view_url + buy_order_id, headers=headers(),
                                         stream=True)
             buy_order_time_limit = datetime.now()
             print("Buy Order Filled: ")
@@ -335,8 +299,8 @@ def algoTrader(tick):
                             limit_reached = (datetime.now() - buy_order_time_limit).total_seconds() > 30
                             if (limit_reached):
                                 one_time_cancel = cancel_order_url + buy_order_id
-                                response = requests.request("DELETE", one_time_cancel, headers=headers)
-                                response = requests.request("GET", nostream_order_view_url + buy_order_id, headers=headers,
+                                response = requests.request("DELETE", one_time_cancel, headers=headers())
+                                response = requests.request("GET", nostream_order_view_url + buy_order_id, headers=headers(),
                                                             stream=True)
                                 print('response: ', response.json())
                                 if response.json()['Orders'][0]['StatusDescription'] == 'UROut':
@@ -381,15 +345,17 @@ def algoTrader(tick):
                 if deleted:
                     deleted = False
                     continue
-                response = requests.request("POST", order_url, json=payload, headers=headers)
-                order_count = pd.read_csv("order_count.csv")[0][0]
-                order_count += 1
-                order_count.to_csv("order_count.csv")
+                response = requests.request("POST", order_url, json=payload, headers=headers())
                 trade_count += next_share_amount
                 print("Sell Order Sent Response: ", response.json()['Orders'][0]['Message'])
                 sell_order_id = response.json()['Orders'][0]['OrderID']
+                orders = pd.read_csv("orders.csv")
+                index = len(orders)
+                orders.loc[index,"Symbol"] = tick
+                orders.loc[index, "Sell Order"] = sell_order_id
+                orders.to_csv("orders.csv")
                 state = False
-                response = requests.request("GET", balances, headers=headers)
+                response = requests.request("GET", balances, headers=headers())
                 print("Running Stats:", json.dumps(response.json(), indent=4))
             except Exception as e:
                 print(e)
@@ -402,9 +368,9 @@ def algoTrader(tick):
 
             if state:
                 one_time_cancel = cancel_order_url + buy_order_id
-                response = requests.request("DELETE", one_time_cancel, headers=headers)
+                response = requests.request("DELETE", one_time_cancel, headers=headers())
                 time.sleep(10)
-                response = requests.request("GET", nostream_order_view_url + buy_order_id, headers=headers, stream=True)
+                response = requests.request("GET", nostream_order_view_url + buy_order_id, headers=headers())
                 if response.json()['Orders'][0]['StatusDescription'] == 'Filled':
                     buy_price = float(line['Legs'][0]['ExecutionPrice'])
                     limit_price = buy_price + difference
@@ -421,18 +387,15 @@ def algoTrader(tick):
                             "Duration": "GTC"
                         }
                     }
-                    response = requests.request("POST", order_url, json=payload, headers=headers)
+                    response = requests.request("POST", order_url, json=payload, headers=headers())
                     trade_count += next_share_amount
                     order_count += 1
                     print('Last Sell Order Sent Response: ', response.json()['Orders'][0]['Message'])
                     sell_order_id = response.json()['Orders'][0]['OrderID']
-
-            dur = (datetime.now() - start_time).total_seconds() / 60
-            #     unsettled = balance['UnsettledFunds']
-            response = requests.request("GET", balances, headers=headers)
-            balance = response.json()['Balances'][0]['BalanceDetail']
-            reprofit = balance['RealizedProfitLoss']
-            unprofit = balance['UnrealizedProfitLoss']
-            unsettled = trade_count * buy_price
+                    orders = pd.read_csv("orders.csv")
+                    index = len(orders)
+                    orders.loc[index, "Symbol"] = tick
+                    orders.loc[index, "Sell Order"] = sell_order_id
+                    orders.to_csv("orders.csv")
             close_positions(tick)
             break
