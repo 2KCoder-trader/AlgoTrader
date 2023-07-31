@@ -1,11 +1,14 @@
+import time
+
 import requests
 import pandas as pd
 from datetime import datetime, timedelta
 global access_token
 def get_access_token():
-    present = datetime.now()
     limit = datetime.now() + timedelta(minutes=19)
     while True:
+        time.sleep(1)
+        present = datetime.now()
         if present > limit:
             secrets = pd.read_csv("secrets.csv")
             CLIENT_ID = secrets["Client ID"][0]
@@ -18,9 +21,9 @@ def get_access_token():
             }
             response = requests.request("POST", url, headers=headers, data=payload)
             response_data = response.json()
-            present = datetime.now()
             limit = datetime.now() + timedelta(minutes=19)
             pd.DataFrame([response_data['access_token']]).to_csv("access_token.csv")
 def headers():
-    token = pd.read_csv("access_token.csv")[0][0]
+    print(pd.read_csv("access_token.csv"))
+    token = pd.read_csv("access_token.csv").iloc[0][1]
     return { "Authorization": f'Bearer {token}'}
