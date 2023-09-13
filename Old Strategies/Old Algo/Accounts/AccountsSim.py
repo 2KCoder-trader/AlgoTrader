@@ -35,14 +35,14 @@ def AccountsSim():
             status = AlgoSimulated.market_status()[0]
             command = "pip install yfinance --upgrade"
             try:
-                result = subprocess.check_output(command, shell=True, text=True)
+                subprocess.check_output(command, shell=True, text=True)
             except subprocess.CalledProcessError as e:
                 print(f"Error executing command: {e}")
-            if AlgoSimulated.market_status()[0] == False:
+            if not AlgoSimulated.market_status()[0]:
                 unsettled_dur += 1
                 accounts = pd.read_csv("accounts.csv")
                 trade_balance = accounts['balance'].sum() / 3
-                pd.DataFrame([trade_balance]).to_csv("trade_balance.csv")
+                pd.DataFrame([trade_balance]).to_csv("../../../trade_balance.csv")
                 balance = accounts['balance'][0]
                 response = requests.request("GET", AlgoSimulated.position_url, headers=AlgoSimulated.headers)
                 for position in response.json()['Positions']:
@@ -59,5 +59,6 @@ def get_balance():
     import pandas as pd
     accounts = pd.read_csv("accounts.csv")
     return accounts['balance'].sum() / 3
-
+if __name__ == '__main__':
+    AccountsSim()
 

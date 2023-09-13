@@ -5,7 +5,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 global access_token
 def get_access_token():
-    limit = datetime.now() + timedelta(minutes=19)
+    limit = datetime.now()
     while True:
         time.sleep(1)
         present = datetime.now()
@@ -22,8 +22,9 @@ def get_access_token():
             response = requests.request("POST", url, headers=headers, data=payload)
             response_data = response.json()
             limit = datetime.now() + timedelta(minutes=19)
-            pd.DataFrame([response_data['access_token']]).to_csv("access_token.csv")
+            pd.DataFrame([response_data['access_token']],columns=["token"]).to_csv("C:\\Users\\kaide\\OneDrive\\AlgoTrader\\access_token.csv")
 def headers():
-    print(pd.read_csv("access_token.csv"))
-    token = pd.read_csv("access_token.csv").iloc[0][1]
+    token = pd.read_csv("C:\\Users\\kaide\\OneDrive\\AlgoTrader\\access_token.csv").iloc[0]["token"]
     return { "Authorization": f'Bearer {token}'}
+if __name__ == '__main__':
+    get_access_token()
