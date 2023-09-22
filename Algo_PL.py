@@ -10,10 +10,12 @@ pd.set_option('display.max_rows', 1000)
 
 if __name__ == '__main__':
     file = input('Enter File: ')
-    orders = pd.read_csv(file)
+    orders = pd.read_csv(file,index_col=None)
+    print(orders)
     tot_pl = 0
     # 'Entry', 'Profit', 'StopLoss'
     order_pl = 0
+
     for i in range(len(orders)):
         clear_output(wait=True)
         order = orders.iloc[i]
@@ -21,8 +23,8 @@ if __name__ == '__main__':
         response = requests.request("GET", url, headers=headers())
         print(response.json())
         order_detail_entry = response.json()['Orders'][0]
-        order_detail_profit = response.json()['Orders'][0]
-        order_detail_stop = response.json()['Orders'][0]
+        order_detail_profit = response.json()['Orders'][1]
+        order_detail_stop = response.json()['Orders'][2]
         quantity = float(order_detail_entry['Legs'][0]['ExecQuantity'])
         exec_price = float(order_detail_entry['Legs'][0]['ExecutionPrice'])
         if order_detail_entry['Status'] != 'FLL':
