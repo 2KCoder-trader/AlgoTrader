@@ -9,7 +9,7 @@ from sklearn.linear_model import LinearRegression
 def settings():
     settings = {
         'unit':'fastasfuckboii',
-        'barsback':5,
+        'barsback':2,
         'symbol': 'TSLA'
     }
     return settings
@@ -20,7 +20,7 @@ def algorithm(data):
     model.fit(X,data)
     trend = model.coef_
     print(trend)
-    entry_price = round(np.mean(data),2)
+    # entry_price = round(np.mean(data),2)
     if trend >= 0:
         action = "Buy"
     else:
@@ -31,12 +31,12 @@ def algorithm(data):
             "Duration": "GTC"
         },
         "Quantity": "100",
-        "OrderType": "Limit",
+        "OrderType": "Market",
         "Symbol": "TSLA",
         "TradeAction": f"{action}",
-        "Route": "Intelligent",
-        "LimitPrice": str(entry_price)
+        "Route": "Intelligent"
     }
+
     url = "https://sim-api.tradestation.com/v3/orderexecution/orders"
     execute_response = requests.request("POST", url, json=payload, headers=headers())
     print(execute_response.json())
@@ -100,11 +100,9 @@ def algorithm(data):
                             "Symbol": "TSLA",
                             "TradeAction": "Sell",
                             "Route": "Intelligent",
-                            "AdvancedOptions": {
-                                "TrailingStop": {
-                                    "Amount": str(diff)
-                                }
-                            }
+                            "LimitPrice": str(round(entry_price-.01,2)),
+                            "StopPrice":str(round(entry_price - diff, 2))
+
                         }
                     ]
                 }
@@ -134,11 +132,9 @@ def algorithm(data):
                     "Symbol": "TSLA",
                     "TradeAction": "BuyToCover",
                     "Route": "Intelligent",
-                    "AdvancedOptions": {
-                        "TrailingStop": {
-                            "Amount": str(diff)
-                        }
-                    }
+                    "LimitPrice": str(round(entry_price + .01, 2)),
+                    "StopPrice":str(round(entry_price + diff, 2))
+
                 }
             ]
         }

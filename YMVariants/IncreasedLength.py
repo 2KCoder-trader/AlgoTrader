@@ -9,7 +9,7 @@ from sklearn.linear_model import LinearRegression
 def settings():
     settings = {
         'unit':'fastasfuckboii',
-        'barsback':5,
+        'barsback':20,
         'symbol': 'TSLA'
     }
     return settings
@@ -22,21 +22,31 @@ def algorithm(data):
     print(trend)
     entry_price = round(np.mean(data),2)
     if trend >= 0:
-        action = "Buy"
+        payload = {
+            "AccountID": "SIM1145924M",
+            "TimeInForce": {
+                "Duration": "GTC"
+            },
+            "Quantity": "100",
+            "OrderType": "Limit",
+            "Symbol": "TSLA",
+            "TradeAction": "Buy",
+            "Route": "Intelligent",
+            "LimitPrice": str(entry_price)
+        }
     else:
-        action = "SellShort"
-    payload = {
-        "AccountID": "SIM1145924M",
-        "TimeInForce": {
-            "Duration": "GTC"
-        },
-        "Quantity": "100",
-        "OrderType": "Limit",
-        "Symbol": "TSLA",
-        "TradeAction": f"{action}",
-        "Route": "Intelligent",
-        "LimitPrice": str(entry_price)
-    }
+        payload = {
+            "AccountID": "SIM1145924M",
+            "TimeInForce": {
+                "Duration": "GTC"
+            },
+            "Quantity": "100",
+            "OrderType": "Limit",
+            "Symbol": "TSLA",
+            "TradeAction": "SellShort",
+            "Route": "Intelligent",
+            "LimitPrice": str(entry_price)
+        }
     url = "https://sim-api.tradestation.com/v3/orderexecution/orders"
     execute_response = requests.request("POST", url, json=payload, headers=headers())
     print(execute_response.json())

@@ -1,9 +1,7 @@
 import keyboard
+import matplotlib.pyplot as plt
 import pandas as pd
 import re
-
-import yf as yf
-
 from Algo_BackTest import process_data
 import pandas_market_calendars as mcal
 import requests
@@ -35,28 +33,46 @@ def calculate_profitloss(group_list,consec,change):
     wins = 0
     tots = 0
     if len(group_list) != 0:
+        if len(consec) == 0:
+            initial = 1
+        else:
+            initial = consec[-1]
         url = f"https://sim-api.tradestation.com/v3/brokerage/accounts/SIM1145924M/orders/{','.join(group_list)}"
         response = requests.request("GET", url, headers=headers())
         for i in range(0, len(group_list), 3):
 
             order_pl = 0
-            order_detail_entry = response.json()['Orders'][i]
+            order_detail_entry = response.json()['Orders'][i+2]
+            # print('order_detail_entry: ',order_detail_entry)
             order_detail_profit = response.json()['Orders'][i + 1]
-            order_detail_stop = response.json()['Orders'][i + 2]
+            # print('order_detail_profit: ', order_detail_profit)
+            order_detail_stop = response.json()['Orders'][i]
+            # print('order_detail_stop: ', order_detail_stop)
             quantity = float(order_detail_entry['Legs'][0]['ExecQuantity'])
             exec_price = float(order_detail_entry['Legs'][0]['ExecutionPrice'])
             if order_detail_entry['Status'] != 'FLL':
                 continue
             elif order_detail_profit['Status'] == 'FLL':
-                order_pl += float(order_detail_profit['Legs'][0]['ExecutionPrice']) - exec_price
+                if order_detail_profit['Legs'][0]['BuyOrSell'] == 'Sell':
+                    order_pl += float(order_detail_profit['Legs'][0]['ExecutionPrice']) - exec_price
+                else:
+                    order_pl += exec_price - float(order_detail_profit['Legs'][0]['ExecutionPrice'])
+
                 wins += 1
+                tots += 1
             elif order_detail_stop['Status'] == 'FLL':
-                order_pl += float(order_detail_stop['Legs'][0]['ExecutionPrice']) - exec_price
+                if order_detail_stop['Legs'][0]['BuyOrSell'] == 'Sell':
+                    order_pl += float(order_detail_stop['Legs'][0]['ExecutionPrice']) - exec_price
+                else:
+                    order_pl += exec_price - float(order_detail_stop['Legs'][0]['ExecutionPrice'])
+                tots += 1
             order_pl *= quantity
+            order_pl = round(order_pl,2)
             tot_pl += order_pl
             change.append(order_pl)
-            consec.append(tot_pl)
-            return [tot_pl, tots, wins,consec,change]
+
+            consec.append(initial + tot_pl)
+        return [tot_pl, tots, wins,consec,change]
     else:
         return
 
@@ -85,12 +101,12 @@ if __name__ == '__main__':
                 group_list.append(str(ids['Profit']))
                 group_list.append(str(ids['StopLoss']))
             if groups == 15:
-                info = calculate_profitloss(group_list)
+                info = calculate_profitloss(group_list,consec,change)
                 tot_pl += info[0]
                 tot_ord += info[1]
                 tot_wins += info[2]
                 consec = info[3]
-                change += info[4]
+                change = info[4]
                 groups = 0
                 group_list = list()
             if keyboard.is_pressed('esc'):
@@ -112,16 +128,17 @@ if __name__ == '__main__':
             ids = algorithm(data)
             if ids:
                 groups += 1
+                print(groups)
                 group_list.append(str(ids['Entry']))
                 group_list.append(str(ids['Profit']))
                 group_list.append(str(ids['StopLoss']))
             if groups == 15:
-                info = calculate_profitloss(group_list)
+                info = calculate_profitloss(group_list,consec,change)
                 tot_pl += info[0]
                 tot_ord += info[1]
                 tot_wins += info[2]
                 consec = info[3]
-                change += info[4]
+                change = info[4]
                 groups = 0
                 group_list = list()
             if keyboard.is_pressed('esc'):
@@ -160,12 +177,12 @@ if __name__ == '__main__':
                 group_list.append(str(ids['Profit']))
                 group_list.append(str(ids['StopLoss']))
             if groups == 15:
-                info = calculate_profitloss(group_list)
+                info = calculate_profitloss(group_list,consec,change)
                 tot_pl += info[0]
                 tot_ord += info[1]
                 tot_wins += info[2]
                 consec = info[3]
-                change += info[4]
+                change = info[4]
                 groups = 0
                 group_list = list()
             if keyboard.is_pressed('esc'):
@@ -187,23 +204,29 @@ if __name__ == '__main__':
                 group_list.append(str(ids['Profit']))
                 group_list.append(str(ids['StopLoss']))
             if groups == 15:
-                info = calculate_profitloss(group_list)
+                info = calculate_profitloss(group_list,consec,change)
                 tot_pl += info[0]
                 tot_ord += info[1]
                 tot_wins += info[2]
                 consec = info[3]
-                change += info[4]
+                change = info[4]
                 groups = 0
                 group_list = list()
             if keyboard.is_pressed('esc'):
                 break
-    info = calculate_profitloss(group_list)
-    tot_pl += info[0]
-    tot_ord += info[1]
-    tot_wins += info[2]
-    consec = info[3]
-    change += info[4]
+    info = calculate_profitloss(group_list,consec,change)
+    if info:
+        tot_pl += info[0]
+        tot_ord += info[1]
+        tot_wins += info[2]
+        consec = info[3]
+        change = info[4]
     print('Profit\\Loss: ',str(tot_pl))
     print('Win Rate: ',str(tot_wins/tot_ord))
-    print(consec)
-    print(change)
+    print('consec ',consec)
+    print('change ',change)
+    X = [x for x in range(len(consec))]
+    plt.plot(X,consec,label = 'consec')
+    plt.scatter(X,change,label = 'change')
+    plt.legend()
+    plt.show()

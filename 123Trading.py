@@ -1,5 +1,6 @@
 import multiprocessing
-
+def settings():
+    return 
 tick = 'MSFT'
     multiprocessing.freeze_support()
     multiprocessing.Process(target=get_access_token).start()
